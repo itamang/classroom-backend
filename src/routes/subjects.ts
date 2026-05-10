@@ -9,8 +9,7 @@ router.get('/', async (req: express.Request, res: express.Response) => {
   try {
         const {search, department, page = 1, limit = 10} = req.query;
         const currentPage = Math.max(1, parseInt(String(page),10) ||1);
-        const limitPerPage =Math.min
-        ( Math.max(1, parseInt(String(limit),10) ||10),100);
+        const limitPerPage = Math.min(Math.max(1, parseInt(String(limit), 10) || 10), 100);
 
         const offset = (currentPage - 1) * limitPerPage;
         const filterConditions =[ ]
@@ -24,10 +23,11 @@ router.get('/', async (req: express.Request, res: express.Response) => {
                 )
             );
         }
-      if (department){
-
-          const deptPattern = `%${String(department).replace(/[%_]/g,'\\$&')}%`;
-          filterConditions.push(ilike(subjects.departmentId, deptPattern))
+      if (department) {
+          const deptId = parseInt(String(department), 10);
+          if (!isNaN(deptId)) {
+              filterConditions.push(eq(subjects.departmentId, deptId));
+          }
       }
       const whereClause = filterConditions.length > 0 ? and(...filterConditions): undefined;
       const countResult=await db
