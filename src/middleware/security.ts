@@ -2,48 +2,67 @@ import type {Request, Response, NextFunction } from 'express';
 import aj from '../config/arcjet';
 import { ArcjetNodeRequest, slidingWindow } from '@arcjet/node';
 
+const adminClient = aj.withRule(
+  slidingWindow({
+    mode: 'LIVE',
+    interval : '1m',
+    max: 20,
+  })
+);
+
+const teacherClient = aj.withRule(
+  slidingWindow({
+    mode: 'LIVE',
+    interval : '1m',
+    max: 20,
+  })
+);
+
+const studentClient = aj.withRule(
+  slidingWindow({
+    mode: 'LIVE',
+    interval : '1m',
+    max: 10,
+  })
+);
+
+const guestClient = aj.withRule(
+  slidingWindow({
+    mode: 'LIVE',
+    interval : '1m',
+    max: 5,
+  })
+);
+
+const clients = {
+  admin: adminClient,
+  teacher: teacherClient,
+  student: studentClient,
+  guest: guestClient,
+} as const;
+
+const messages = {
+  admin: "Admin request limit exceeded (20 per  minute). Slow down",
+  teacher: "Request limit exceeded (20 per  minute)",
+  student: "User request limit exceeded (10 per  minute). Please wait. ",
+  guest: "Guest request limit exceeded (5 per minute). Please sign up for higher limits.",
+} as const;
+
 const securityMiddleware = async (req: Request, res: Response, next: NextFunction)=>{
   if (process.env.NODE_ENV === 'test')return next();
   try {
-   const role: RateLimitRole = req.user?.role ?? 'guest'; // allow certain type of users like admin and teacher to make more requests than a student 
-    let limit : number;
-    let message: string;
-    switch (role){
-      case 'admin':
-        limit = 20;
-        message= "Admin request limit exceeded (20 per  minute). Slow down";
-        break;
-      case 'teacher':
-        limit = 20;
-        message= "Request limit exceeded (20 per  minute)";
-        break;
+    const role: RateLimitRole = req.user?.role ?? 'guest';
+    const client = (clients as any)[role] ?? guestClient;
+    const message = (messages as any)[role] ?? messages.guest;
 
-      case 'student':
-        limit = 10;
-        message= "User request limit exceeded (10 per  minute). Please wait. ";
-        break;
-      default:
-        limit = 5;
-        message = "Guest request limit exceeded (5 per minute). Please sign up for higher limits."
-        break;
-
-    }
-    const client = aj.withRule(
-      slidingWindow({
-        mode: 'LIVE',
-        interval : '1m',
-        max: limit,
-      })
-    )
-
-    const arcjectRequest : ArcjetNodeRequest = {
+    const arcjetRequest : ArcjetNodeRequest  = {
       headers: req.headers,
       method: req.method,
       url : req.originalUrl ?? req.url,
       socket: {remoteAddress: req.socket.remoteAddress ?? req.ip ?? '0.0.0.0'},
     }
 
-    const decision = await client.protect(arcjectRequest);
+    const decision = await client.protect(arcjetRequest);
     if (decision.isDenied() && decision.reason.isBot()) {
       return res
         .status(403)
