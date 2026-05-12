@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import subjectsRouter from './routes/subjects';
 import cors from 'cors';
+import securityMiddleware from './middleware/security';
 
 const app = express();
 const port = 8000;
@@ -16,6 +17,7 @@ app.use(
 
 // Middleware to parse JSON bodies
 app.use(express.json());
+app.use(securityMiddleware);
 
 app.use('/api/subjects', subjectsRouter)
 
